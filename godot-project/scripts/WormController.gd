@@ -1,8 +1,8 @@
 extends Node2D
 
-const SEGMENT_COUNT: int = 12
+const BASE_SEGMENT_COUNT: int = 10
 const SEGMENT_SPACING: float = 20.0
-const MOVE_SPEED: float = 60.0
+const BASE_MOVE_SPEED: float = 50.0
 const DIRECTION_CHANGE_TIME: float = 2.0
 
 @onready var segment_scene = preload("res://scenes/WormSegment.tscn")
@@ -11,18 +11,35 @@ var segments: Array = []
 var positions: Array = []
 var direction: Vector2 = Vector2(1, 0)
 var direction_timer: float = 0.0
+var move_speed: float = BASE_MOVE_SPEED
+var segment_count: int = BASE_SEGMENT_COUNT
 
 func _ready():
+	calculate_level_stats()
 	spawn_worm()
+
+func calculate_level_stats():
+	# Increase difficulty based on level
+	var level = Global.current_level
+	segment_count = BASE_SEGMENT_COUNT + (level - 1) * 3  # More segments each level
+	move_speed = BASE_MOVE_SPEED + (level - 1) * 15.0    # Faster each level
+	segment_count = min(segment_count, 25)  # Cap at 25 segments
+	move_speed = min(move_speed, 120.0)     # Cap speed
 
 func spawn_worm():
 	segments.clear()
 	positions.clear()
 	
-	# Start at top of screen
-	var start_pos = Vector2(100, 100)
+	# Random starting position at top
+	var start_x = randf_range(100, 700)
+	var start_y = randf_range(50, 100)
+	var start_pos = Vector2(start_x, start_y)
 	
-	for i in range(SEGMENT_COUNT):
+	# Random starting direction
+	var angle = randf_range(-PI/4, PI/4)  # Generally downward
+	direction = Vector2(cos(angle), sin(angle)).normalized()
+	
+	for i in range(segment_count):
 		var segment = segment_scene.instantiate()
 		segment.segment_index = i
 		segment.worm_controller = self
@@ -42,15 +59,15 @@ func _physics_process(delta: float):
 	
 	# Move head
 	var head = segments[0]
-	head.position += direction * MOVE_SPEED * delta
+	head.position += direction * move_speed * delta
 	
 	# Keep head on screen (bounce off edges)
 	if head.position.x < 20 or head.position.x > 780:
 		direction.x *= -1
 		head.position.x = clamp(head.position.x, 20, 780)
-	if head.position.y < 20 or head.position.y > 300:
+	if head.position.y < 20 or head.position.y > 350:
 		direction.y *= -1
-		head.position.y = clamp(head.position.y, 20, 300)
+		head.position.y = clamp(head.position.y, 20, 350)
 	
 	positions[0] = head.position
 	
@@ -68,12 +85,13 @@ func _physics_process(delta: float):
 		segments[i].queue_redraw()
 
 func change_direction():
-	# Random direction change
+	# Random direction change with bias toward moving down
 	var angle = randf() * TAU
 	direction = Vector2(cos(angle), sin(angle)).normalized()
 	
-	# Bias towards moving down and side to side
-	direction.y = abs(direction.y) * 0.5
+	# Bias towards moving down and side to side (not too much up)
+	if direction.y < 0:
+		direction.y = abs(direction.y) * 0.3
 	direction = direction.normalized()
 
 func segment_destroyed(segment):
@@ -83,10 +101,23 @@ func segment_destroyed(segment):
 		positions.remove_at(index)
 		segment.queue_free()
 		
-		# Add score
-		Global.add_score(10)
+		# Add score based on level
+		var points = 10 + (Global.current_level - 1) * 5
+		Global.add_score(points)
 		
 		# Check if all segments destroyed
 		if segments.is_empty():
-			# Victory!
-			get_tree().call_deferred("change_scene_to_file", "res://scenes/VictoryScreen.tscn")
+			# Level complete!
+			level_complete()
+
+func level_complete():
+	# Wait a moment before transitioning
+	await get_tree().create_timer(0.5).timeout
+	
+	if Global.current_level >= Global.max_level:
+		# Game complete!
+		get_tree().change_scene_to_file("res://scenes/VictoryScreen.tscn")
+	else:
+		# Next level
+		Global.next_level()
+		get_tree().change_scene_to_file("res://scenes/LevelTransition.tscn")

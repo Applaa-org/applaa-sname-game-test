@@ -33,6 +33,10 @@
             margin-top: 20px;
             font-size: 24px;
             text-shadow: 0 0 10px #66ff66;
+            display: flex;
+            justify-content: space-between;
+            max-width: 800px;
+            margin: 20px auto 0;
         }
         .screen {
             display: none;
@@ -45,6 +49,7 @@
             padding: 40px;
             border: 3px solid #66ff66;
             box-shadow: 0 0 30px #66ff66;
+            min-width: 500px;
         }
         .screen.active {
             display: block;
@@ -86,6 +91,12 @@
             color: #ffdd66;
             margin: 15px 0;
         }
+        .level-info {
+            color: #88ff88;
+            font-size: 18px;
+            margin: 15px 0;
+            line-height: 1.6;
+        }
     </style>
 </head>
 <body>
@@ -104,14 +115,29 @@
             <button onclick="quitGame()">QUIT</button>
         </div>
 
+        <!-- Level Transition Screen -->
+        <div id="levelScreen" class="screen">
+            <h1 id="levelTitle">LEVEL 1</h1>
+            <h2>GET READY!</h2>
+            <div class="level-info" id="levelInfo">
+                SEGMENTS: 10<br>
+                SPEED: 50<br>
+                POINTS: 10 per segment
+            </div>
+            <button onclick="continueLevel()">CONTINUE</button>
+        </div>
+
         <!-- Game Canvas -->
         <canvas id="gameCanvas" width="800" height="600"></canvas>
-        <div id="ui">SCORE: <span id="score">0</span></div>
+        <div id="ui">
+            <div>SCORE: <span id="score">0</span></div>
+            <div style="color: #ffdd66;">LEVEL: <span id="levelDisplay">1/5</span></div>
+        </div>
 
         <!-- Victory Screen -->
         <div id="victoryScreen" class="screen">
             <h1 style="color: #66ff66;">VICTORY!</h1>
-            <h2>WORM ELIMINATED</h2>
+            <h2 id="victoryMessage">ALL LEVELS COMPLETE!</h2>
             <div class="score">FINAL SCORE: <span id="finalScore">0</span></div>
             <div class="score">HIGH SCORE: <span id="victoryHighScore">0</span></div>
             <button onclick="restartGame()">RESTART</button>
@@ -136,8 +162,10 @@
         const ctx = canvas.getContext('2d');
 
         // Game state
-        let gameState = 'start';
+        let gameState = 'start'; // start, levelTransition, playing, victory, defeat
         let score = 0;
+        let currentLevel = 1;
+        const MAX_LEVELS = 5;
         let highScore = parseInt(localStorage.getItem('snakeShooterHighScore')) || 0;
         document.getElementById('highScore').textContent = highScore;
 
@@ -168,25 +196,42 @@
         const bullets = [];
         const BULLET_SPEED = 400;
 
+        // Worm configuration based on level
+        function getWormConfig(level) {
+            const segmentCount = 10 + (level - 1) * 3;
+            const speed = 50 + (level - 1) * 15;
+            const points = 10 + (level - 1) * 5;
+            return {
+                segmentCount: Math.min(segmentCount, 25),
+                speed: Math.min(speed, 120),
+                points: points,
+                segmentSpacing: 20
+            };
+        }
+
         // Worm
-        const worm = {
+        let worm = {
             segments: [],
-            segmentCount: 12,
-            segmentSpacing: 20,
-            speed: 60,
+            config: getWormConfig(1),
             direction: { x: 1, y: 0 },
             directionTimer: 0,
             directionChangeTime: 2
         };
 
-        // Initialize worm
+        // Initialize worm for current level
         function initWorm() {
+            worm.config = getWormConfig(currentLevel);
             worm.segments = [];
-            const startX = 100;
-            const startY = 100;
-            for (let i = 0; i < worm.segmentCount; i++) {
+            worm.directionTimer = 0;
+            
+            const startX = Math.random() * 600 + 100;
+            const startY = Math.random() * 50 + 50;
+            const angle = Math.random() * Math.PI / 2 - Math.PI / 4;
+            worm.direction = { x: Math.cos(angle), y: Math.sin(angle) };
+            
+            for (let i = 0; i < worm.config.segmentCount; i++) {
                 worm.segments.push({
-                    x: startX - i * worm.segmentSpacing,
+                    x: startX - i * worm.config.segmentSpacing,
                     y: startY,
                     radius: 10
                 });
@@ -218,33 +263,65 @@
 
         // Game functions
         function startGame() {
-            gameState = 'playing';
+            currentLevel = 1;
             score = 0;
+            showLevelTransition();
+        }
+
+        function showLevelTransition() {
+            gameState = 'levelTransition';
+            const config = getWormConfig(currentLevel);
+            
+            document.getElementById('levelTitle').textContent = `LEVEL ${currentLevel}`;
+            document.getElementById('levelInfo').innerHTML = `
+                SEGMENTS: ${config.segmentCount}<br>
+                SPEED: ${config.speed}<br>
+                POINTS: ${config.points} per segment
+            `;
+            
+            hideAllScreens();
+            document.getElementById('levelScreen').classList.add('active');
+            
+            // Auto-continue after 3 seconds
+            setTimeout(() => {
+                if (gameState === 'levelTransition') {
+                    continueLevel();
+                }
+            }, 3000);
+        }
+
+        function continueLevel() {
+            gameState = 'playing';
             player.x = 400;
             player.y = 500;
             bullets.length = 0;
             initWorm();
             
-            document.getElementById('startScreen').classList.remove('active');
+            hideAllScreens();
             canvas.style.display = 'block';
-            document.getElementById('ui').style.display = 'block';
+            document.getElementById('ui').style.display = 'flex';
+            document.getElementById('levelDisplay').textContent = `${currentLevel}/${MAX_LEVELS}`;
             
-            requestAnimationFrame(gameLoop);
+            gameLoop();
         }
 
         function restartGame() {
-            document.getElementById('victoryScreen').classList.remove('active');
-            document.getElementById('defeatScreen').classList.remove('active');
+            hideAllScreens();
             startGame();
         }
 
         function mainMenu() {
             gameState = 'start';
+            currentLevel = 1;
+            score = 0;
+            hideAllScreens();
             canvas.style.display = 'none';
             document.getElementById('ui').style.display = 'none';
-            document.getElementById('victoryScreen').classList.remove('active');
-            document.getElementById('defeatScreen').classList.remove('active');
             document.getElementById('startScreen').classList.add('active');
+        }
+
+        function hideAllScreens() {
+            document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
         }
 
         function quitGame() {
@@ -265,33 +342,24 @@
         }
 
         function updatePlayer(dt) {
-            // Calculate movement direction
             let dx = 0, dy = 0;
             
-            // Left/Right (check both WASD and arrow keys)
             if (keys.a || keys.arrowleft) dx -= 1;
             if (keys.d || keys.arrowright) dx += 1;
-            
-            // Up/Down
             if (keys.w || keys.arrowup) dy -= 1;
             if (keys.s || keys.arrowdown) dy += 1;
 
-            // Normalize diagonal movement
             if (dx !== 0 || dy !== 0) {
                 const length = Math.sqrt(dx * dx + dy * dy);
                 dx /= length;
                 dy /= length;
             }
 
-            // Apply movement
             player.x += dx * player.speed * dt;
             player.y += dy * player.speed * dt;
-
-            // Clamp to screen
             player.x = Math.max(30, Math.min(770, player.x));
             player.y = Math.max(30, Math.min(570, player.y));
 
-            // Shoot cooldown
             if (!canShoot) {
                 shootCooldown -= dt;
                 if (shootCooldown <= 0) {
@@ -304,13 +372,11 @@
             for (let i = bullets.length - 1; i >= 0; i--) {
                 bullets[i].y -= BULLET_SPEED * dt;
                 
-                // Remove off-screen bullets
                 if (bullets[i].y < -10) {
                     bullets.splice(i, 1);
                     continue;
                 }
 
-                // Check collision with worm
                 for (let j = worm.segments.length - 1; j >= 0; j--) {
                     const seg = worm.segments[j];
                     const dist = Math.sqrt(
@@ -320,12 +386,11 @@
                     if (dist < seg.radius + 2) {
                         worm.segments.splice(j, 1);
                         bullets.splice(i, 1);
-                        score += 10;
+                        score += worm.config.points;
                         document.getElementById('score').textContent = score;
                         
-                        // Check victory
                         if (worm.segments.length === 0) {
-                            victory();
+                            levelComplete();
                         }
                         break;
                     }
@@ -336,35 +401,33 @@
         function updateWorm(dt) {
             if (worm.segments.length === 0) return;
 
-            // Change direction periodically
             worm.directionTimer += dt;
             if (worm.directionTimer >= worm.directionChangeTime) {
                 worm.directionTimer = 0;
                 const angle = Math.random() * Math.PI * 2;
                 worm.direction.x = Math.cos(angle);
                 worm.direction.y = Math.sin(angle);
-                worm.direction.y = Math.abs(worm.direction.y) * 0.5;
+                if (worm.direction.y < 0) {
+                    worm.direction.y = Math.abs(worm.direction.y) * 0.3;
+                }
                 const length = Math.sqrt(worm.direction.x ** 2 + worm.direction.y ** 2);
                 worm.direction.x /= length;
                 worm.direction.y /= length;
             }
 
-            // Move head
             const head = worm.segments[0];
-            head.x += worm.direction.x * worm.speed * dt;
-            head.y += worm.direction.y * worm.speed * dt;
+            head.x += worm.direction.x * worm.config.speed * dt;
+            head.y += worm.direction.y * worm.config.speed * dt;
 
-            // Bounce off edges
             if (head.x < 20 || head.x > 780) {
                 worm.direction.x *= -1;
                 head.x = Math.max(20, Math.min(780, head.x));
             }
-            if (head.y < 20 || head.y > 300) {
+            if (head.y < 20 || head.y > 350) {
                 worm.direction.y *= -1;
-                head.y = Math.max(20, Math.min(300, head.y));
+                head.y = Math.max(20, Math.min(350, head.y));
             }
 
-            // Follow segments
             for (let i = 1; i < worm.segments.length; i++) {
                 const prev = worm.segments[i - 1];
                 const curr = worm.segments[i];
@@ -372,14 +435,13 @@
                 const dy = prev.y - curr.y;
                 const dist = Math.sqrt(dx * dx + dy * dy);
 
-                if (dist > worm.segmentSpacing) {
-                    const ratio = (dist - worm.segmentSpacing) / dist;
+                if (dist > worm.config.segmentSpacing) {
+                    const ratio = (dist - worm.config.segmentSpacing) / dist;
                     curr.x += dx * ratio;
                     curr.y += dy * ratio;
                 }
             }
 
-            // Check collision with player
             for (const seg of worm.segments) {
                 const dist = Math.sqrt(
                     Math.pow(player.x - seg.x, 2) +
@@ -392,12 +454,30 @@
             }
         }
 
+        function levelComplete() {
+            if (currentLevel >= MAX_LEVELS) {
+                victory();
+            } else {
+                currentLevel++;
+                setTimeout(() => {
+                    showLevelTransition();
+                }, 500);
+            }
+        }
+
         function victory() {
             gameState = 'victory';
             if (score > highScore) {
                 highScore = score;
                 localStorage.setItem('snakeShooterHighScore', highScore);
             }
+            
+            if (currentLevel >= MAX_LEVELS) {
+                document.getElementById('victoryMessage').textContent = 'ALL LEVELS COMPLETE!';
+            } else {
+                document.getElementById('victoryMessage').textContent = `LEVEL ${currentLevel} COMPLETE!`;
+            }
+            
             document.getElementById('finalScore').textContent = score;
             document.getElementById('victoryHighScore').textContent = highScore;
             canvas.style.display = 'none';
@@ -418,7 +498,6 @@
             document.getElementById('defeatScreen').classList.add('active');
         }
 
-        // Drawing functions
         function drawPlayer() {
             ctx.fillStyle = '#66ff66';
             ctx.strokeStyle = '#338833';
@@ -460,7 +539,6 @@
         }
 
         function draw() {
-            // Clear screen
             ctx.fillStyle = '#0d260d';
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
@@ -469,7 +547,6 @@
             drawPlayer();
         }
 
-        // Game loop
         let lastTime = 0;
         function gameLoop(currentTime = 0) {
             if (gameState !== 'playing') return;

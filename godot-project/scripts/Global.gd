@@ -2,6 +2,8 @@ extends Node
 
 var score: int = 0
 var high_score: int = 0
+var current_level: int = 1
+var max_level: int = 5
 
 func add_score(points: int):
 	score += points
@@ -10,9 +12,12 @@ func add_score(points: int):
 
 func reset_score():
 	score = 0
+	current_level = 1
+
+func next_level():
+	current_level += 1
 
 func _ready():
-	# Load high score from file if it exists
 	load_high_score()
 
 func load_high_score():
