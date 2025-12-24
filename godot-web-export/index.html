@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Snake Game Test - Retro Arcade Shooter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            background: #0a1a0a;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            font-family: 'Courier New', monospace;
+            color: #66ff66;
+        }
+        #gameContainer {
+            text-align: center;
+        }
+        canvas {
+            border: 3px solid #66ff66;
+            background: #0d260d;
+            box-shadow: 0 0 20px #66ff66;
+            display: block;
+            margin: 0 auto;
+        }
+        #ui {
+            margin-top: 20px;
+            font-size: 24px;
+            text-shadow: 0 0 10px #66ff66;
+        }
+        .screen {
+            display: none;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            text-align: center;
+            background: #0d260d;
+            padding: 40px;
+            border: 3px solid #66ff66;
+            box-shadow: 0 0 30px #66ff66;
+        }
+        .screen.active {
+            display: block;
+        }
+        h1 {
+            font-size: 48px;
+            margin-bottom: 20px;
+            color: #66ff66;
+            text-shadow: 0 0 15px #66ff66;
+        }
+        h2 {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #88ff88;
+        }
+        button {
+            background: #66ff66;
+            color: #0a1a0a;
+            border: none;
+            padding: 15px 40px;
+            font-size: 20px;
+            margin: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #88ff88;
+            box-shadow: 0 0 15px #66ff66;
+        }
+        .instructions {
+            margin: 20px 0;
+            line-height: 1.8;
+            color: #88ff88;
+        }
+        .score {
+            font-size: 28px;
+            color: #ffdd66;
+            margin: 15px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <!-- Start Screen -->
+        <div id="startScreen" class="screen active">
+            <h1>SNAKE SHOOTER</h1>
+            <h2>CENTIPEDE STYLE</h2>
+            <div class="instructions">
+                WASD - MOVE<br>
+                SPACE - SHOOT<br>
+                ESC - MENU
+            </div>
+            <div class="score">HIGH SCORE: <span id="highScore">0</span></div>
+            <button onclick="startGame()">START GAME</button>
+            <button onclick="quitGame()">QUIT</button>
+        </div>
+
+        <!-- Game Canvas -->
+        <canvas id="gameCanvas" width="800" height="600"></canvas>
+        <div id="ui">SCORE: <span id="score">0</span></div>
+
+        <!-- Victory Screen -->
+        <div id="victoryScreen" class="screen">
+            <h1 style="color: #66ff66;">VICTORY!</h1>
+            <h2>WORM ELIMINATED</h2>
+            <div class="score">FINAL SCORE: <span id="finalScore">0</span></div>
+            <div class="score">HIGH SCORE: <span id="victoryHighScore">0</span></div>
+            <button onclick="restartGame()">RESTART</button>
+            <button onclick="mainMenu()">MAIN MENU</button>
+            <button onclick="quitGame()">QUIT</button>
+        </div>
+
+        <!-- Defeat Screen -->
+        <div id="defeatScreen" class="screen">
+            <h1 style="color: #ff6666;">GAME OVER</h1>
+            <h2>WORM REACHED YOU</h2>
+            <div class="score">FINAL SCORE: <span id="defeatScore">0</span></div>
+            <div class="score">HIGH SCORE: <span id="defeatHighScore">0</span></div>
+            <button onclick="restartGame()">RESTART</button>
+            <button onclick="mainMenu()">MAIN MENU</button>
+            <button onclick="quitGame()">QUIT</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Game state
+        let gameState = 'start'; // start, playing, victory, defeat
+        let score = 0;
+        let highScore = localStorage.getItem('snakeShooterHighScore') || 0;
+        document.getElementById('highScore').textContent = highScore;
+
+        // Player
+        const player = {
+            x: 400,
+            y: 500,
+            speed: 300,
+            size: 15
+        };
+
+        // Input
+        const keys = {};
+        let canShoot = true;
+        let shootCooldown = 0;
+
+        // Bullets
+        const bullets = [];
+        const BULLET_SPEED = 400;
+
+        // Worm
+        const worm = {
+            segments: [],
+            segmentCount: 12,
+            segmentSpacing: 20,
+            speed: 60,
+            direction: { x: 1, y: 0 },
+            directionTimer: 0,
+            directionChangeTime: 2
+        };
+
+        // Initialize worm
+        function initWorm() {
+            worm.segments = [];
+            const startX = 100;
+            const startY = 100;
+            for (let i = 0; i < worm.segmentCount; i++) {
+                worm.segments.push({
+                    x: startX - i * worm.segmentSpacing,
+                    y: startY,
+                    radius: 10
+                });
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('keydown', (e) => {
+            keys[e.key.toLowerCase()] = true;
+            if (e.key === ' ' && gameState === 'playing') {
+                e.preventDefault();
+                shoot();
+            }
+            if (e.key === 'Escape' && gameState === 'playing') {
+                mainMenu();
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            keys[e.key.toLowerCase()] = false;
+        });
+
+        // Game functions
+        function startGame() {
+            gameState = 'playing';
+            score = 0;
+            player.x = 400;
+            player.y = 500;
+            bullets.length = 0;
+            initWorm();
+            
+            document.getElementById('startScreen').classList.remove('active');
+            canvas.style.display = 'block';
+            document.getElementById('ui').style.display = 'block';
+            
+            gameLoop();
+        }
+
+        function restartGame() {
+            document.getElementById('victoryScreen').classList.remove('active');
+            document.getElementById('defeatScreen').classList.remove('active');
+            startGame();
+        }
+
+        function mainMenu() {
+            gameState = 'start';
+            canvas.style.display = 'none';
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('victoryScreen').classList.remove('active');
+            document.getElementById('defeatScreen').classList.remove('active');
+            document.getElementById('startScreen').classList.add('active');
+        }
+
+        function quitGame() {
+            alert('Thanks for playing!');
+        }
+
+        function shoot() {
+            if (!canShoot) return;
+            canShoot = false;
+            shootCooldown = 0.2;
+            
+            bullets.push({
+                x: player.x,
+                y: player.y - 20,
+                width: 4,
+                height: 12
+            });
+        }
+
+        function updatePlayer(dt) {
+            // Movement
+            let dx = 0, dy = 0;
+            if (keys['a']) dx -= 1;
+            if (keys['d']) dx += 1;
+            if (keys['w']) dy -= 1;
+            if (keys['s']) dy += 1;
+
+            if (dx !== 0 || dy !== 0) {
+                const length = Math.sqrt(dx * dx + dy * dy);
+                dx /= length;
+                dy /= length;
+            }
+
+            player.x += dx * player.speed * dt;
+            player.y += dy * player.speed * dt;
+
+            // Clamp to screen
+            player.x = Math.max(30, Math.min(770, player.x));
+            player.y = Math.max(30, Math.min(570, player.y));
+
+            // Shoot cooldown
+            if (!canShoot) {
+                shootCooldown -= dt;
+                if (shootCooldown <= 0) {
+                    canShoot = true;
+                }
+            }
+        }
+
+        function updateBullets(dt) {
+            for (let i = bullets.length - 1; i >= 0; i--) {
+                bullets[i].y -= BULLET_SPEED * dt;
+                
+                // Remove off-screen bullets
+                if (bullets[i].y < -10) {
+                    bullets.splice(i, 1);
+                    continue;
+                }
+
+                // Check collision with worm
+                for (let j = worm.segments.length - 1; j >= 0; j--) {
+                    const seg = worm.segments[j];
+                    const dist = Math.sqrt(
+                        Math.pow(bullets[i].x - seg.x, 2) +
+                        Math.pow(bullets[i].y - seg.y, 2)
+                    );
+                    if (dist < seg.radius + 2) {
+                        worm.segments.splice(j, 1);
+                        bullets.splice(i, 1);
+                        score += 10;
+                        document.getElementById('score').textContent = score;
+                        
+                        // Check victory
+                        if (worm.segments.length === 0) {
+                            victory();
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+
+        function updateWorm(dt) {
+            if (worm.segments.length === 0) return;
+
+            // Change direction periodically
+            worm.directionTimer += dt;
+            if (worm.directionTimer >= worm.directionChangeTime) {
+                worm.directionTimer = 0;
+                const angle = Math.random() * Math.PI * 2;
+                worm.direction.x = Math.cos(angle);
+                worm.direction.y = Math.sin(angle);
+                worm.direction.y = Math.abs(worm.direction.y) * 0.5;
+                const length = Math.sqrt(worm.direction.x ** 2 + worm.direction.y ** 2);
+                worm.direction.x /= length;
+                worm.direction.y /= length;
+            }
+
+            // Move head
+            const head = worm.segments[0];
+            head.x += worm.direction.x * worm.speed * dt;
+            head.y += worm.direction.y * worm.speed * dt;
+
+            // Bounce off edges
+            if (head.x < 20 || head.x > 780) {
+                worm.direction.x *= -1;
+                head.x = Math.max(20, Math.min(780, head.x));
+            }
+            if (head.y < 20 || head.y > 300) {
+                worm.direction.y *= -1;
+                head.y = Math.max(20, Math.min(300, head.y));
+            }
+
+            // Follow segments
+            for (let i = 1; i < worm.segments.length; i++) {
+                const prev = worm.segments[i - 1];
+                const curr = worm.segments[i];
+                const dx = prev.x - curr.x;
+                const dy = prev.y - curr.y;
+                const dist = Math.sqrt(dx * dx + dy * dy);
+
+                if (dist > worm.segmentSpacing) {
+                    const ratio = (dist - worm.segmentSpacing) / dist;
+                    curr.x += dx * ratio;
+                    curr.y += dy * ratio;
+                }
+            }
+
+            // Check collision with player
+            for (const seg of worm.segments) {
+                const dist = Math.sqrt(
+                    Math.pow(player.x - seg.x, 2) +
+                    Math.pow(player.y - seg.y, 2)
+                );
+                if (dist < player.size + seg.radius) {
+                    defeat();
+                }
+            }
+        }
+
+        function victory() {
+            gameState = 'victory';
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeShooterHighScore', highScore);
+            }
+            document.getElementById('finalScore').textContent = score;
+            document.getElementById('victoryHighScore').textContent = highScore;
+            canvas.style.display = 'none';
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('victoryScreen').classList.add('active');
+        }
+
+        function defeat() {
+            gameState = 'defeat';
+            if (score > highScore) {
+                highScore = score;
+                localStorage.setItem('snakeShooterHighScore', highScore);
+            }
+            document.getElementById('defeatScore').textContent = score;
+            document.getElementById('defeatHighScore').textContent = highScore;
+            canvas.style.display = 'none';
+            document.getElementById('ui').style.display = 'none';
+            document.getElementById('defeatScreen').classList.add('active');
+        }
+
+        // Drawing functions
+        function drawPlayer() {
+            ctx.fillStyle = '#66ff66';
+            ctx.strokeStyle = '#338833';
+            ctx.lineWidth = 2;
+            
+            ctx.beginPath();
+            ctx.moveTo(player.x, player.y - player.size);
+            ctx.lineTo(player.x - player.size * 0.8, player.y + player.size);
+            ctx.lineTo(player.x + player.size * 0.8, player.y + player.size);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        function drawBullets() {
+            ctx.fillStyle = '#ffff66';
+            for (const bullet of bullets) {
+                ctx.fillRect(
+                    bullet.x - bullet.width / 2,
+                    bullet.y - bullet.height / 2,
+                    bullet.width,
+                    bullet.height
+                );
+            }
+        }
+
+        function drawWorm() {
+            for (let i = 0; i < worm.segments.length; i++) {
+                const seg = worm.segments[i];
+                ctx.fillStyle = i === 0 ? '#ff6666' : '#ee7777';
+                ctx.strokeStyle = '#992222';
+                ctx.lineWidth = 2;
+                
+                ctx.beginPath();
+                ctx.arc(seg.x, seg.y, seg.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+            }
+        }
+
+        function draw() {
+            // Clear screen
+            ctx.fillStyle = '#0d260d';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            drawWorm();
+            drawBullets();
+            drawPlayer();
+        }
+
+        // Game loop
+        let lastTime = 0;
+        function gameLoop(currentTime = 0) {
+            if (gameState !== 'playing') return;
+
+            const dt = Math.min((currentTime - lastTime) / 1000, 0.1);
+            lastTime = currentTime;
+
+            updatePlayer(dt);
+            updateBullets(dt);
+            updateWorm(dt);
+            draw();
+
+            requestAnimationFrame(gameLoop);
+        }
+    </script>
+</body>
+</html>

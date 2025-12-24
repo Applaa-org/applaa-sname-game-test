@@ -1,0 +1,53 @@
+{
+  "game": {
+    "name": "Snake Game Test",
+    "type": "2D",
+    "genre": "arcade shooter",
+    "description": "Top-down arcade shooter inspired by Centipede with Nokia 3310 retro aesthetics. Shoot the segmented worm before it reaches you!"
+  },
+  "settings": {
+    "window": {
+      "width": 800,
+      "height": 600
+    },
+    "physics": {
+      "gravity": 0
+    }
+  },
+  "player": {
+    "name": "Player",
+    "speed": 300,
+    "abilities": ["shoot"]
+  },
+  "entities": {
+    "enemies": [
+      {
+        "name": "WormSegment",
+        "health": 1,
+        "speed": 50,
+        "behavior": "snake_movement"
+      }
+    ],
+    "projectiles": [
+      {
+        "name": "Bullet",
+        "speed": 400,
+        "damage": 1
+      }
+    ]
+  },
+  "levels": [
+    {
+      "name": "Main Game",
+      "background": "nokia_green",
+      "theme": "retro_monochrome"
+    }
+  ],
+  "logic": {
+    "winCondition": "score_threshold",
+    "loseCondition": "worm_reaches_player",
+    "scoring": {
+      "pointsPerSegment": 10
+    }
+  }
+}
