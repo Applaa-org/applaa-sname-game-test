@@ -22,17 +22,33 @@ func _physics_process(delta: float):
 	if Input.is_action_pressed("ui_accept") and can_shoot:
 		shoot()
 	
-	# Handle movement (WASD)
-	var direction_x := Input.get_axis("ui_left", "ui_right")
-	var direction_y := Input.get_axis("ui_up", "ui_down")
+	# Handle movement with better input detection
+	var direction := Vector2.ZERO
 	
-	velocity = Vector2(direction_x, direction_y).normalized() * SPEED
+	# Check for left/right movement
+	if Input.is_action_pressed("ui_left") or Input.is_key_pressed(KEY_A):
+		direction.x -= 1.0
+	if Input.is_action_pressed("ui_right") or Input.is_key_pressed(KEY_D):
+		direction.x += 1.0
 	
-	# Clamp to screen bounds (with margin)
-	position.x = clamp(position.x + velocity.x * delta, 30, 770)
-	position.y = clamp(position.y + velocity.y * delta, 30, 570)
+	# Check for up/down movement
+	if Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W):
+		direction.y -= 1.0
+	if Input.is_action_pressed("ui_down") or Input.is_key_pressed(KEY_S):
+		direction.y += 1.0
 	
+	# Normalize diagonal movement
+	if direction.length() > 0:
+		direction = direction.normalized()
+	
+	# Apply movement
+	velocity = direction * SPEED
+	
+	# Move and clamp to screen bounds
 	move_and_slide()
+	
+	position.x = clamp(position.x, 30, 770)
+	position.y = clamp(position.y, 30, 570)
 	
 	queue_redraw()
 

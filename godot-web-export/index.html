@@ -1,10 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset```html
-<!DOCTYPE html>
-<html lang="en">
-<head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Snake Game Test - Retro Arcade Shooter</title>
@@ -99,7 +95,7 @@
             <h1>SNAKE SHOOTER</h1>
             <h2>CENTIPEDE STYLE</h2>
             <div class="instructions">
-                WASD - MOVE<br>
+                WASD or ARROW KEYS - MOVE<br>
                 SPACE - SHOOT<br>
                 ESC - MENU
             </div>
@@ -140,9 +136,9 @@
         const ctx = canvas.getContext('2d');
 
         // Game state
-        let gameState = 'start'; // start, playing, victory, defeat
+        let gameState = 'start';
         let score = 0;
-        let highScore = localStorage.getItem('snakeShooterHighScore') || 0;
+        let highScore = parseInt(localStorage.getItem('snakeShooterHighScore')) || 0;
         document.getElementById('highScore').textContent = highScore;
 
         // Player
@@ -153,8 +149,18 @@
             size: 15
         };
 
-        // Input
-        const keys = {};
+        // Input tracking
+        const keys = {
+            w: false,
+            a: false,
+            s: false,
+            d: false,
+            arrowleft: false,
+            arrowright: false,
+            arrowup: false,
+            arrowdown: false
+        };
+        
         let canShoot = true;
         let shootCooldown = 0;
 
@@ -189,7 +195,11 @@
 
         // Event listeners
         document.addEventListener('keydown', (e) => {
-            keys[e.key.toLowerCase()] = true;
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = true;
+            }
+            
             if (e.key === ' ' && gameState === 'playing') {
                 e.preventDefault();
                 shoot();
@@ -200,7 +210,10 @@
         });
 
         document.addEventListener('keyup', (e) => {
-            keys[e.key.toLowerCase()] = false;
+            const key = e.key.toLowerCase();
+            if (keys.hasOwnProperty(key)) {
+                keys[key] = false;
+            }
         });
 
         // Game functions
@@ -216,7 +229,7 @@
             canvas.style.display = 'block';
             document.getElementById('ui').style.display = 'block';
             
-            gameLoop();
+            requestAnimationFrame(gameLoop);
         }
 
         function restartGame() {
@@ -252,19 +265,25 @@
         }
 
         function updatePlayer(dt) {
-            // Movement
+            // Calculate movement direction
             let dx = 0, dy = 0;
-            if (keys['a']) dx -= 1;
-            if (keys['d']) dx += 1;
-            if (keys['w']) dy -= 1;
-            if (keys['s']) dy += 1;
+            
+            // Left/Right (check both WASD and arrow keys)
+            if (keys.a || keys.arrowleft) dx -= 1;
+            if (keys.d || keys.arrowright) dx += 1;
+            
+            // Up/Down
+            if (keys.w || keys.arrowup) dy -= 1;
+            if (keys.s || keys.arrowdown) dy += 1;
 
+            // Normalize diagonal movement
             if (dx !== 0 || dy !== 0) {
                 const length = Math.sqrt(dx * dx + dy * dy);
                 dx /= length;
                 dy /= length;
             }
 
+            // Apply movement
             player.x += dx * player.speed * dt;
             player.y += dy * player.speed * dt;
 
@@ -368,6 +387,7 @@
                 );
                 if (dist < player.size + seg.radius) {
                     defeat();
+                    return;
                 }
             }
         }
